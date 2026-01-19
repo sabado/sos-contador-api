@@ -1,0 +1,572 @@
+openapi: 3.0.3
+info:
+  title: SOS Contador API
+  description: |
+    API no oficial de SOS Contador para gestión contable.
+    
+    **Documentación creada por la comunidad** ya que la oficial solo está disponible en Postman Documenter.
+    
+    ## Autenticación
+    Sistema de dos tokens:
+    1. Login con usuario/password → Token de Usuario
+    2. Token de Usuario + CUIT ID → Token de CUIT
+    3. Token de CUIT se usa para todas las operaciones
+    
+  version: 1.0.0
+  contact:
+    name: Comunidad de desarrolladores
+    url: https://github.com/tu-repo/sos-contador-api-docs
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.sos-contador.com/api-comunidad
+    description: Servidor de producción
+
+tags:
+  - name: auth
+    description: Autenticación
+  - name: clientes
+    description: Gestión de clientes y proveedores
+  - name: productos
+    description: Gestión de productos
+  - name: ventas
+    description: Gestión de ventas y facturas
+  - name: puntosventa
+    description: Puntos de venta
+
+paths:
+  /login:
+    post:
+      tags:
+        - auth
+      summary: Login - Obtener token de usuario
+      description: Autenticarse con usuario y contraseña para obtener token de usuario
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - usuario
+                - password
+              properties:
+                usuario:
+                  type: string
+                  format: email
+                  example: usuario@ejemplo.com
+                password:
+                  type: string
+                  format: password
+                  example: miPassword123
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt:
+                    type: string
+                    description: Token de usuario (JWT)
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        '401':
+          description: Credenciales inválidas
+
+  /cuit/credentials/{id}:
+    get:
+      tags:
+        - auth
+      summary: Obtener token de CUIT
+      description: Obtener token de CUIT usando token de usuario
+      operationId: getCuitToken
+      security:
+        - bearerAuthUser: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la CUIT
+          schema:
+            type: integer
+            example: 1665
+      responses:
+        '200':
+          description: Token de CUIT obtenido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  jwt:
+                    type: string
+                    description: Token de CUIT (JWT)
+        '401':
+          description: Token de usuario inválido
+        '404':
+          description: CUIT no encontrada
+
+  /cliente/listado:
+    get:
+      tags:
+        - clientes
+      summary: Listar clientes y proveedores
+      description: Obtener listado paginado de clientes y/o proveedores
+      operationId: listarClientes
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: cliente
+          in: query
+          description: Incluir clientes
+          schema:
+            type: boolean
+            default: true
+        - name: proveedor
+          in: query
+          description: Incluir proveedores
+          schema:
+            type: boolean
+            default: true
+        - name: registros
+          in: query
+          description: Registros por página
+          schema:
+            type: integer
+            default: 16
+            minimum: 1
+        - name: pagina
+          in: query
+          description: Número de página
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+      responses:
+        '200':
+          description: Lista de clientes/proveedores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clientes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Cliente'
+                  total:
+                    type: integer
+                  pagina:
+                    type: integer
+
+  /producto/listado:
+    get:
+      tags:
+        - productos
+      summary: Listar productos
+      description: Obtener listado de productos registrados
+      operationId: listarProductos
+      security:
+        - bearerAuthCuit: []
+      responses:
+        '200':
+          description: Lista de productos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Producto'
+
+  /producto/{id}:
+    put:
+      tags:
+        - productos
+      summary: Crear o actualizar producto
+      description: Crear nuevo producto (id=0) o actualizar existente
+      operationId: guardarProducto
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del producto (0 para nuevo)
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoInput'
+      responses:
+        '200':
+          description: Producto guardado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Producto'
+        '400':
+          description: Datos inválidos
+
+    delete:
+      tags:
+        - productos
+      summary: Eliminar producto
+      description: Eliminar un producto de la base de datos
+      operationId: eliminarProducto
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID del producto
+          schema:
+            type: integer
+            example: 63
+      responses:
+        '204':
+          description: Producto eliminado exitosamente
+        '404':
+          description: Producto no encontrado
+
+  /puntoventa/listado:
+    get:
+      tags:
+        - puntosventa
+      summary: Listar puntos de venta
+      description: Obtener listado de puntos de venta registrados
+      operationId: listarPuntosVenta
+      security:
+        - bearerAuthCuit: []
+      responses:
+        '200':
+          description: Lista de puntos de venta
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PuntoVenta'
+
+  /venta/{id}:
+    put:
+      tags:
+        - ventas
+      summary: Crear o actualizar venta
+      description: Crear nueva venta/factura (id=0) o actualizar existente
+      operationId: guardarVenta
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la venta (0 para nueva)
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VentaInput'
+      responses:
+        '200':
+          description: Venta guardada exitosamente
+        '400':
+          description: Datos inválidos
+
+    delete:
+      tags:
+        - ventas
+      summary: Eliminar venta
+      description: Eliminar una venta/factura
+      operationId: eliminarVenta
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la venta
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Venta eliminada exitosamente
+        '404':
+          description: Venta no encontrada
+
+  /venta/archivar/{id}:
+    put:
+      tags:
+        - ventas
+      summary: Archivar venta
+      description: Marcar una venta como archivada
+      operationId: archivarVenta
+      security:
+        - bearerAuthCuit: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID de la venta
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Venta archivada exitosamente
+        '404':
+          description: Venta no encontrada
+
+components:
+  securitySchemes:
+    bearerAuthUser:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de usuario obtenido en /login
+    bearerAuthCuit:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token de CUIT obtenido en /cuit/credentials/{id}
+
+  schemas:
+    Cliente:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        nombre:
+          type: string
+          example: Cliente Ejemplo S.A.
+        cuit:
+          type: string
+          pattern: '^\d{2}-\d{8}-\d$'
+          example: 30-12345678-9
+        tipo:
+          type: string
+          enum: [cliente, proveedor]
+
+    Producto:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 772500
+        codigo:
+          type: string
+          example: PROD001
+        nombre:
+          type: string
+          example: Producto de ejemplo
+        precio:
+          type: number
+          format: double
+          example: 1550.00
+        alicuota_iva:
+          type: number
+          format: double
+          example: 21.00
+        activo:
+          type: boolean
+
+    ProductoInput:
+      type: object
+      required:
+        - nombre
+        - precio
+      properties:
+        codigo:
+          type: string
+        nombre:
+          type: string
+        unidad:
+          type: string
+        precio:
+          type: number
+          format: double
+        alicuota_iva:
+          type: number
+          format: double
+        activo:
+          type: boolean
+
+    PuntoVenta:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        nombre:
+          type: string
+
+    VentaInput:
+      type: object
+      required:
+        - idtipo_operacion
+        - idclipro
+        - cuitclipro
+        - fcncnd
+        - letra
+        - puntoventa
+        - numero
+        - uniqueid
+        - imputaciones
+        - productos
+      properties:
+        idtipo_operacion:
+          type: integer
+          description: ID del tipo de operación
+          example: 2
+        fecha:
+          type: string
+          format: date
+          nullable: true
+          description: Fecha del comprobante (null = hoy)
+          example: null
+        idclipro:
+          type: integer
+          description: ID del cliente/proveedor
+          example: 1
+        cuitclipro:
+          type: string
+          pattern: '^\d{2}-\d{8}-\d$'
+          description: CUIT del cliente/proveedor
+          example: 50-00000001-6
+        idcuenta:
+          type: integer
+          nullable: true
+        fcncnd:
+          type: string
+          enum: [F, NC, ND]
+          description: Tipo de comprobante (F=Factura, NC=Nota Crédito, ND=Nota Débito)
+          example: F
+        letra:
+          type: string
+          enum: [A, B, C]
+          description: Letra de factura
+          example: C
+        puntoventa:
+          type: integer
+          minimum: 1
+          description: Número de punto de venta
+          example: 1
+        numero:
+          type: integer
+          minimum: 1
+          description: Número de comprobante
+          example: 1
+        numerohasta:
+          type: integer
+          nullable: true
+        obtienecae:
+          type: boolean
+          description: Solicitar CAE a AFIP
+          example: false
+        fechaiva:
+          type: string
+          format: date
+          nullable: true
+        idprovinciaiibb:
+          type: integer
+          nullable: true
+        idcentrocosto:
+          type: integer
+          nullable: true
+        memo:
+          type: string
+          description: Descripción del comprobante
+          example: Factura de Prueba
+        referencia:
+          type: string
+          description: Referencia externa
+          example: REF-12345
+        descuento:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          description: Descuento en porcentaje
+          example: 0
+        uniqueid:
+          type: string
+          format: uuid
+          description: UUID único para idempotencia
+          example: 550e8400-e29b-41d4-a716-446655440000
+        imputaciones:
+          type: array
+          description: Array de imputaciones contables
+          items:
+            $ref: '#/components/schemas/Imputacion'
+        productos:
+          type: array
+          description: Array de productos vendidos
+          items:
+            $ref: '#/components/schemas/ProductoVenta'
+
+    Imputacion:
+      type: object
+      required:
+        - i
+        - a
+        - v
+      properties:
+        i:
+          type: string
+          description: Tipo de imputación
+          example: neto
+        a:
+          type: number
+          format: double
+          description: Alícuota (0 para neto)
+          example: 0
+        v:
+          type: number
+          format: double
+          description: Valor
+          example: 1550.00
+
+    ProductoVenta:
+      type: object
+      required:
+        - id
+        - u
+        - fc
+        - fu
+        - fa
+      properties:
+        id:
+          type: integer
+          description: ID del producto
+          example: 772500
+        u:
+          type: number
+          format: double
+          description: Unidades/cantidad
+          example: 7
+        fc:
+          type: number
+          format: double
+          description: Factor de conversión (usualmente 1)
+          example: 1
+        fu:
+          type: number
+          format: double
+          description: Precio unitario
+          example: 1550.00
+        fa:
+          type: number
+          format: double
+          description: Alícuota de IVA
+          example: 21.00
